@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>abiemd - かんたんmarkdownメモ帳</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Lora:ital,wght@0,400;0,500;1,400&family=Noto+Serif+JP:wght@300;400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="libs/katex/katex.min.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="bar">
+  <span id="logo" title="新しいタブで開く">abie<span>md</span></span>
+
+  <label class="bar-btn" style="cursor:pointer" title=".md ファイルを開く">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 11V14h12v-3M8 2v8M5 5l3-3 3 3"/></svg>
+    .md を開く
+    <input type="file" id="file-input" accept=".md,text/markdown" style="display:none">
+  </label>
+
+  <button class="bar-btn danger" id="btn-clear">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 4h10M6 4V2h4v2M5 4v9a1 1 0 001 1h4a1 1 0 001-1V4"/><path d="M7 7v4M9 7v4"/></svg>
+    全部消す
+  </button>
+
+  <div class="bar-sep"></div>
+
+  <div id="dl-wrap">
+    <button class="bar-btn" id="btn-download">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2v8M5 7l3 3 3-3M2 12v2h12v-2"/></svg>
+      Download &#9662;
+    </button>
+    <div id="dl-menu">
+      <button class="dl-item" id="dl-md">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="1" width="12" height="14" rx="1.5"/><path d="M5 6h6M5 9h6M5 12h3"/></svg>
+        <span class="di-ext">.md</span><span class="di-desc">Markdown</span>
+      </button>
+      <button class="dl-item" id="dl-png">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="2" width="14" height="12" rx="1.5"/><circle cx="5.5" cy="6" r="1.2"/><path d="M1 11l4-3.5 3 2.5 2.5-2 4.5 3"/></svg>
+        <span class="di-ext">.png</span><span class="di-desc">Image File</span>
+      </button>
+      <button class="dl-item" id="dl-pdf">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 1h7l4 4v10H3V1z"/><path d="M10 1v4h4"/><path d="M5 9h6M5 11h4"/></svg>
+        <span class="di-ext">.pdf</span><span class="di-desc">A4 size PDF(s)</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<div id="app">
+  <div id="main">
+    <div class="pane" id="pane-left">
+      <div class="pane-label">
+        <span class="dot active"></span>書く欄
+        <span style="flex:1"></span><span id="lbl-lines">0 lines</span>
+      </div>
+      <div id="meta-header">
+        <div class="meta-field">
+          <span class="meta-label">タイトル</span>
+          <input class="meta-input" id="meta-title" type="text" placeholder="タイトルを入力…" autocomplete="off" spellcheck="false">
+        </div>
+      </div>
+      <textarea id="editor" placeholder="Markdownで書いてみよう&#10;画像も貼り付け可"></textarea>
+      <div id="mobile-toolbar">
+        <button class="mt-btn" id="mt-h" title="見出し">#</button>
+        <button class="mt-btn" id="mt-li" title="リスト">-</button>
+      </div>
+    </div>
+    <div id="divider"></div>
+    <div class="pane" id="pane-right">
+      <div class="pane-label"><span class="dot"></span>イメージ</div>
+      <div id="preview-wrap"><div id="preview" class="md-body"></div></div>
+    </div>
+  </div>
+</div>
+
+<div id="statusbar">
+  <span class="ss"><span id="char-count">0</span> 文字</span>
+  <span class="ss"><span id="word-count">0</span> 単語</span>
+  <span class="ss-sep"></span>
+  <span id="title-display">—</span>
+</div>
+
+<div id="drop-overlay">📄 .md ファイル を開く...</div>
+<div id="render-clone"></div>
+<div id="toast"></div>
+
+<div id="confirm-bg">
+  <div id="confirm-box">
+    <p>全部消してまっさらにする？</p>
+    <div class="confirm-btns">
+      <button class="cbtn" id="confirm-cancel" autofocus>キャンセル</button>
+      <button class="cbtn cbtn-danger" id="confirm-ok">消去する</button>
+    </div>
+  </div>
+</div>
+
+<script src="libs/marked/marked.min.js"></script>
+<script src="libs/html2canvas/html2canvas.min.js"></script>
+<script src="libs/jspdf/jspdf.umd.min.js"></script>
+<script src="libs/katex/katex.min.js"></script>
+<script src="libs/katex/contrib/auto-render.min.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
