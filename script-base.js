@@ -21,10 +21,12 @@ const preview      = document.getElementById('preview');
 const renderClone  = document.getElementById('render-clone');
 const fileInput    = document.getElementById('file-input');
 const dlMenu       = document.getElementById('dl-menu');
+const openMenu     = document.getElementById('open-menu');
+const lsListEl     = document.getElementById('ls-list');
 const toast        = document.getElementById('toast');
 const charCount    = document.getElementById('char-count');
 const wordCount    = document.getElementById('word-count');
-const lblLines     = document.getElementById('lbl-lines');
+const lineCount    = document.getElementById('line-count');
 const titleDisp    = document.getElementById('title-display');
 const dropOverlay  = document.getElementById('drop-overlay');
 const metaTitle    = document.getElementById('meta-title');
@@ -39,6 +41,13 @@ function getNowStamp(){
   return d.getFullYear()+'.'+p(d.getMonth()+1)+'.'+p(d.getDate())+'.'+p(d.getHours())+'.'+p(d.getMinutes())+'.'+p(d.getSeconds());
 }
 
+
+function stampToLabel(stamp) {
+  // '2024.01.23.14.05.30' → '2024/01/23 14:05'
+  const p = stamp.split('.');
+  if(p.length < 5) return stamp;
+  return p[0]+'/'+p[1]+'/'+p[2]+' '+p[3]+':'+p[4];
+}
 /* ── BASE64 IMAGE MAP ─────────────────────────────────────
    Images pasted or loaded are stored here.
    In the editor text, they appear as  ![alt:N](data:image/png;base64,iVBOR…)
@@ -127,6 +136,7 @@ function render() {
   const raw   = editor.value;
   const title = metaTitle.value.trim();
   titleDisp.textContent = title || '\u2014';
+  document.title = 'abiemd - ' + (title || 'かんたんmarkdownメモ帳');
 
   const expanded = expandTokens(raw);
   const withKatex = typeof katex !== 'undefined' ? renderKatex(expanded) : expanded;
@@ -136,7 +146,7 @@ function render() {
 
   charCount.textContent = raw.length.toLocaleString();
   wordCount.textContent = raw.trim() ? raw.trim().split(/\s+/).length.toLocaleString() : '0';
-  lblLines.textContent  = raw.split('\n').length + ' lines';
+  lineCount.textContent = raw.split('\n').length.toLocaleString();
 }
 
 /* ── INTERACTIVE CHECKBOXES ── */
@@ -176,7 +186,7 @@ function renderQuiet() {
   const raw = editor.value;
   charCount.textContent = raw.length.toLocaleString();
   wordCount.textContent = raw.trim() ? raw.trim().split(/\s+/).length.toLocaleString() : '0';
-  lblLines.textContent  = raw.split('\n').length + ' lines';
+  lineCount.textContent = raw.split('\n').length.toLocaleString();
   // re-sync checkbox visual states in preview to match editor truth
   const CHECKBOX_RE = /^(\s*[-*+]\s+)\[([ x])\]/gm;
   const states = [];
@@ -219,7 +229,54 @@ function insertAt(text) {
   editor.selectionStart = editor.selectionEnd = s+text.length;
   editor.dispatchEvent(new Event('input'));
 }
-editor.addEventListener('keydown', e=>{ if(e.key==='Tab'){e.preventDefault();insertAt('  ');} });
+editor.addEventListener('keydown', e=>{
+  if(e.key==='Tab'){ e.preventDefault(); insertAt('  '); return; }
+  const ctrl = e.ctrlKey||e.metaKey;
+  if(ctrl && e.key==='b'){
+    e.preventDefault();
+    wrapSelection('<b>','</b>');
+    return;
+  }
+  if(ctrl && e.key==='i'){
+    e.preventDefault();
+    wrapSelection('*','*');
+    return;
+  }
+});
+
+function wrapSelection(open, close) {
+  const s = editor.selectionStart, en = editor.selectionEnd;
+  const val = editor.value;
+  const selected = val.slice(s, en);
+  if(selected.length > 0){
+    const ol = open.length, cl = close.length;
+    // トグル判定1: 選択範囲の外側に記号がある場合 (wrap後に全体選択した場合)
+    const outerWrapped = val.slice(s - ol, s) === open && val.slice(en, en + cl) === close;
+    // トグル判定2: 選択範囲自体が記号で囲まれている場合 (wrap後に全体選択した場合)
+    const innerWrapped = selected.startsWith(open) && selected.endsWith(close) && selected.length > ol + cl;
+    if(outerWrapped){
+      editor.value = val.slice(0, s - ol) + selected + val.slice(en + cl);
+      editor.selectionStart = s - ol;
+      editor.selectionEnd   = s - ol + selected.length;
+    } else if(innerWrapped){
+      const inner = selected.slice(ol, selected.length - cl);
+      editor.value = val.slice(0, s) + inner + val.slice(en);
+      editor.selectionStart = s;
+      editor.selectionEnd   = s + inner.length;
+    } else {
+      const wrapped = open + selected + close;
+      editor.value = val.slice(0, s) + wrapped + val.slice(en);
+      editor.selectionStart = s;
+      editor.selectionEnd   = s + wrapped.length;
+    }
+  } else {
+    // カーソル位置に挿入してカーソルを中に
+    const ins = open + close;
+    editor.value = val.slice(0, s) + ins + val.slice(s);
+    editor.selectionStart = editor.selectionEnd = s + open.length;
+  }
+  editor.dispatchEvent(new Event('input'));
+}
 
 /* ── BUILD MD (export: expand tokens, convert bare URLs) ── */
 function buildMd() {
@@ -300,6 +357,98 @@ fileInput.addEventListener('change', ()=>{
   };
   r.readAsText(f); fileInput.value='';
 });
+
+/* ── OPEN MENU (ローカル / ブラウザ) ── */
+const btnOpen = document.getElementById('btn-open');
+btnOpen.addEventListener('click', e=>{ e.stopPropagation(); openMenu.classList.toggle('open'); });
+document.addEventListener('click', ()=>openMenu.classList.remove('open'));
+openMenu.addEventListener('click', e=>e.stopPropagation());
+
+document.getElementById('open-local').addEventListener('click', ()=>{
+  openMenu.classList.remove('open');
+  fileInput.click();
+});
+
+document.getElementById('open-browser').addEventListener('click', ()=>{
+  openMenu.classList.remove('open');
+  buildLsList();
+  document.getElementById('ls-modal-bg').classList.add('open');
+});
+
+document.getElementById('ls-modal-bg').addEventListener('click', e=>{
+  if(e.target===document.getElementById('ls-modal-bg'))
+    document.getElementById('ls-modal-bg').classList.remove('open');
+});
+document.getElementById('ls-modal-close').addEventListener('click', ()=>{
+  document.getElementById('ls-modal-bg').classList.remove('open');
+});
+
+function buildLsList() {
+  lsListEl.innerHTML = '';
+  const keys = [];
+  for(let i=0;i<localStorage.length;i++){
+    const k=localStorage.key(i);
+    if(k && (k.startsWith('abiemd_autosave_') || k.startsWith('abiemd_save_'))) keys.push(k);
+  }
+  // 自動保存を先頭、手動保存を新しい順
+  keys.sort((a,b)=>{
+    const aAuto = a.startsWith('abiemd_autosave_');
+    const bAuto = b.startsWith('abiemd_autosave_');
+    if(aAuto && !bAuto) return -1;
+    if(!aAuto && bAuto) return 1;
+    return b.localeCompare(a);
+  });
+  if(keys.length===0){
+    lsListEl.innerHTML='<div class="ls-empty">保存されたファイルはありません</div>';
+    return;
+  }
+  keys.forEach(key=>{
+    let raw;
+    try{ raw=localStorage.getItem(key); }catch(e){ return; }
+    if(!raw) return;
+    const isAuto = key.startsWith('abiemd_autosave_');
+    let label, stamp;
+    if(isAuto){
+      const sm = raw.match(/^---[\s\S]*?autosave_at:\s*([^\n]+)/);
+      stamp = sm ? sm[1].trim() : '';
+      const tm = raw.match(/^---[\s\S]*?title:\s*([^\n]+)/);
+      const title = tm ? tm[1].trim() : '';
+      const timeStr = stamp ? stampToLabel(stamp) : '';
+      label = (title ? title+' — ' : '') + (timeStr ? timeStr+' 自動保存' : '自動保存');
+    } else {
+      stamp = key.replace('abiemd_save_','');
+      // フロントマターのtitle、なければ先頭の# 行から取得
+      const tm = raw.match(/^---[\s\S]*?title:\s*([^\n]+)/) || raw.match(/^#\s+(.+)/m);
+      const title = tm ? tm[1].trim() : '';
+      label = (title ? title+' — ' : '') + stampToLabel(stamp);
+    }
+    const row = document.createElement('div');
+    row.className = 'ls-row';
+    const btn = document.createElement('button');
+    btn.className = 'ls-item';
+    btn.innerHTML = '<span class="ls-label">'+esc(label)+'</span>'
+      +(isAuto?'<span class="ls-badge">自動</span>':'');
+    btn.addEventListener('click', ()=>{
+      document.getElementById('ls-modal-bg').classList.remove('open');
+      if(isEditorEmpty()){ loadParsedMd(raw); showToast('読み込みました'); }
+      else { openMdInNewTab(raw); showToast('新しいタブで開きました'); }
+    });
+    const delBtn = document.createElement('button');
+    delBtn.className = 'ls-del';
+    delBtn.title = '削除';
+    delBtn.textContent = '✕';
+    delBtn.addEventListener('click', e=>{
+      e.stopPropagation();
+      localStorage.removeItem(key);
+      row.remove();
+      if(lsListEl.children.length===0)
+        lsListEl.innerHTML='<div class="ls-empty">保存されたファイルはありません</div>';
+    });
+    row.appendChild(btn);
+    row.appendChild(delBtn);
+    lsListEl.appendChild(row);
+  });
+}
 
 /* ── DRAG DROP ── */
 let dc=0;
@@ -385,8 +534,30 @@ document.getElementById('dl-png').addEventListener('click', async ()=>{
   dlMenu.classList.remove('open'); showToast('png画像を準備中...'); await sleep(120);
   try {
     prepClone();
-    const canvas=await html2canvas(renderClone,{backgroundColor:'#faf9f7',scale:2,useCORS:true,logging:false});
-    canvas.toBlob(blob=>{ dlBlob(blob,getFN('png')); showToast('.png でダウンロードしました！'); },'image/png');
+    const canvas = await html2canvas(renderClone,{backgroundColor:'#faf9f7',scale:2,useCORS:true,logging:false});
+    // A4高さをキャンバスのpxに換算（幅はprepCloneで794px固定、scale:2で1588px）
+    const A4H_PX = Math.round(841.89 * (canvas.width / 595.28));
+    const totalH  = canvas.height;
+    const pages   = Math.ceil(totalH / A4H_PX);
+    const baseName = getFN('png').replace(/\.png$/, '');
+
+    for (let p = 0; p < pages; p++) {
+      const srcY = p * A4H_PX;
+      const srcH = Math.min(A4H_PX, totalH - srcY);
+      const sc   = document.createElement('canvas');
+      sc.width   = canvas.width;
+      sc.height  = A4H_PX; // 最終ページも同じ高さ（余白は白で埋める）
+      const ctx  = sc.getContext('2d');
+      ctx.fillStyle = '#faf9f7';
+      ctx.fillRect(0, 0, sc.width, sc.height);
+      ctx.drawImage(canvas, 0, srcY, canvas.width, srcH, 0, 0, canvas.width, srcH);
+      const suffix = pages > 1 ? '_p' + (p + 1) : '';
+      await new Promise(res => {
+        sc.toBlob(blob => { dlBlob(blob, baseName + suffix + '.png'); res(); }, 'image/png');
+      });
+      if (pages > 1) await sleep(80); // ブラウザがまとめてブロックしないよう間隔を空ける
+    }
+    showToast(pages > 1 ? pages + '枚の .png でダウンロードしました！' : '.png でダウンロードしました！');
   } catch(err){ showToast('エラー: '+err.message); }
 });
 
@@ -394,7 +565,8 @@ document.getElementById('dl-pdf').addEventListener('click', async ()=>{
   dlMenu.classList.remove('open'); showToast('PDFを準備中...'); await sleep(120);
   try {
     prepClone(); await sleep(80);
-    const canvas=await html2canvas(renderClone,{backgroundColor:'#faf9f7',scale:2,useCORS:true,logging:false});
+    // scale:1.5 にしてPNG→JPEGへ変更することで容量を大幅削減（目標10MB以下）
+    const canvas=await html2canvas(renderClone,{backgroundColor:'#faf9f7',scale:1.5,useCORS:true,logging:false});
     const {jsPDF}=window.jspdf, A4W=595.28, A4H=841.89;
     const pdf=new jsPDF({orientation:'p',unit:'pt',format:'a4'});
     const scale=canvas.width/A4W, imgH=canvas.height/scale;
@@ -402,16 +574,65 @@ document.getElementById('dl-pdf').addEventListener('click', async ()=>{
     while(drawn<imgH){
       const slicePt=Math.min(A4H,imgH-drawn), srcY=Math.round(drawn*scale), srcH=Math.round(slicePt*scale);
       const sc=document.createElement('canvas'); sc.width=canvas.width; sc.height=srcH;
-      const ctx=sc.getContext('2d'); ctx.fillStyle='#faf9f7'; ctx.fillRect(0,0,sc.width,sc.height);
+      const ctx=sc.getContext('2d');
+      ctx.fillStyle='#faf9f7'; ctx.fillRect(0,0,sc.width,sc.height);
       ctx.drawImage(canvas,0,srcY,canvas.width,srcH,0,0,canvas.width,srcH);
       if(page>0) pdf.addPage();
-      pdf.addImage(sc.toDataURL('image/png'),'PNG',0,0,A4W,slicePt);
+      // PNG→JPEG(quality:0.82)に変更。背景白なのでアーティファクトはほぼ目立たない
+      pdf.addImage(sc.toDataURL('image/jpeg',0.82),'JPEG',0,0,A4W,slicePt);
       drawn+=A4H; page++;
     }
     pdf.save(getFN('pdf'));
     showToast('.pdf でダウンロードしました！');
   } catch(err){ showToast('エラー: '+err.message); }
 });
+
+document.getElementById('dl-print').addEventListener('click', ()=>{
+  dlMenu.classList.remove('open');
+  // タイトルを一時的にdocument.titleに反映（ブラウザのPDF保存時のデフォルトファイル名になる）
+  const prev = document.title;
+  const t = metaTitle.value.trim();
+  if(t) document.title = t;
+  window.print();
+  document.title = prev;
+});
+
+document.getElementById('dl-lsave').addEventListener('click', ()=>{
+  dlMenu.classList.remove('open');
+  const fn = getFN('md');
+  const key = 'abiemd_save_' + getNowStamp();
+  const md = buildMd();
+  try {
+    localStorage.setItem(key, md);
+    showToast('ブラウザに保存しました！');
+  } catch(e) {
+    showToast('保存失敗: ' + e.message);
+  }
+});
+
+/* ── AUTO SAVE (1分おき, タイトルごとに最大1件) ── */
+function autoSaveKey(title) {
+  // タイトルをキー安全な文字列に変換
+  const safe = title ? title.replace(/[^\w\u3000-\u9fff\u30A0-\u30FF\u3041-\u3096]/g,'_').replace(/_+/g,'_').slice(0,40) : '__notitle__';
+  return 'abiemd_autosave_' + safe;
+}
+function autoSave() {
+  if(editor.value.trim() === '') return;
+  const stamp = getNowStamp();
+  const title = metaTitle.value.trim();
+  const date  = stamp.slice(0,10).replace(/\./g,'-');
+  let body = expandTokens(editor.value);
+  let out = '---\nautosave_at: '+stamp+'\n';
+  if(title) out += 'title: '+title+'\n';
+  out += '---\n\n';
+  if(title) out += '# '+title+'\n\n'+date+'\n\n';
+  out += body;
+  try {
+    localStorage.setItem(autoSaveKey(title), out);
+    showToast('自動保存しました！');
+  } catch(e) { showToast('自動保存失敗: '+e.message); }
+}
+setInterval(autoSave, 60000);
 
 /* ── UTILS ── */
 function getFN(ext){
