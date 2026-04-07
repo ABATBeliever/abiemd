@@ -350,10 +350,14 @@ document.getElementById('logo').addEventListener('click', ()=>window.open(locati
 
 fileInput.addEventListener('change', ()=>{
   const f=fileInput.files[0]; if(!f) return;
+  if(!isEditorEmpty() && f.size > 4.5*1024*1024){ //約5MB以上でLocalStorage/SessionStorageの限界
+    showToast('このファイルはサイズが大きいため、左上のアイコンから新しいタブを開き、試してください。');
+    fileInput.value=''; return;
+  }
   const r=new FileReader();
   r.onload=e=>{
     if(isEditorEmpty()){ loadParsedMd(e.target.result); showToast('読み込みました'); }
-    else { openMdInNewTab(e.target.result); showToast('新しいタブで開きました'); }
+    else { if(openMdInNewTab(e.target.result)) showToast('新しいタブで開きました'); }
   };
   r.readAsText(f); fileInput.value='';
 });
@@ -459,10 +463,14 @@ document.addEventListener('drop', e=>{
   e.preventDefault(); dc=0; dropOverlay.classList.remove('active');
   const files=[...e.dataTransfer.files].filter(f=>f.name.endsWith('.md')||f.type==='text/markdown');
   if(!files.length) return;
+  if(!isEditorEmpty() && files[0].size > 4.5*1024*1024){
+    showToast('このファイルはサイズが大きいため、左上のアイコンを押すと開ける新しいタブでやり直してください。');
+    return;
+  }
   const r=new FileReader();
   r.onload=ev=>{
     if(isEditorEmpty()){ loadParsedMd(ev.target.result); showToast('読み込みました'); }
-    else { openMdInNewTab(ev.target.result); showToast('新しいタブで開きました'); }
+    else { if(openMdInNewTab(ev.target.result)) showToast('新しいタブで開きました'); }
   };
   r.readAsText(files[0]);
 });
@@ -470,10 +478,16 @@ document.addEventListener('drop', e=>{
 /* ── NEW TAB ── */
 function openMdInNewTab(mdText) {
   const key='abiemd_'+Date.now();
-  sessionStorage.setItem(key, mdText);
+  try {
+    sessionStorage.setItem(key, mdText);
+  } catch(e) {
+    showToast('このファイルはサイズが大きいため、左上のアイコンから新しいタブで開いてください。');
+    return false;
+  }
   const url=new URL(location.href);
   url.searchParams.set('load',key);
   window.open(url.toString(),'_blank');
+  return true;
 }
 (function(){
   const key=new URLSearchParams(location.search).get('load');
@@ -606,7 +620,10 @@ document.getElementById('dl-lsave').addEventListener('click', ()=>{
     localStorage.setItem(key, md);
     showToast('ブラウザに保存しました！');
   } catch(e) {
-    showToast('保存失敗: ' + e.message);
+    if(e.name==='QuotaExceededError' || (e.code && e.code===22))
+      showToast('このメモは大きいので、LocalStorage以外の方法を使って下さい。');
+    else
+      showToast('保存失敗: ' + e.message);
   }
 });
 
@@ -620,17 +637,20 @@ function autoSave() {
   if(editor.value.trim() === '') return;
   const stamp = getNowStamp();
   const title = metaTitle.value.trim();
-  const date  = stamp.slice(0,10).replace(/\./g,'-');
   let body = expandTokens(editor.value);
   let out = '---\nautosave_at: '+stamp+'\n';
   if(title) out += 'title: '+title+'\n';
-  out += '---\n\n';
-  if(title) out += '# '+title+'\n\n'+date+'\n\n';
+  out += '---\n';
   out += body;
   try {
     localStorage.setItem(autoSaveKey(title), out);
     showToast('自動保存しました！');
-  } catch(e) { showToast('自動保存失敗: '+e.message); }
+  } catch(e) {
+    if(e.name==='QuotaExceededError' || (e.code && e.code===22))
+      showToast('このメモは大きいので、自動保存はできません。ご注意を。');
+    else
+      showToast('自動保存失敗: '+e.message);
+  }
 }
 setInterval(autoSave, 60000);
 
