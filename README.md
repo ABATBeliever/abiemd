@@ -1,6 +1,6 @@
 # abiemd
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Version](https://img.shields.io/badge/version-2.1-green.svg)
+![Version](https://img.shields.io/badge/version-2.2-green.svg)
 ![Version](https://img.shields.io/badge/Language-JavaScript-yellow.svg)
 
 ## 概要

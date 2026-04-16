@@ -147,6 +147,12 @@ function render() {
   charCount.textContent = raw.length.toLocaleString();
   wordCount.textContent = raw.trim() ? raw.trim().split(/\s+/).length.toLocaleString() : '0';
   lineCount.textContent = raw.split('\n').length.toLocaleString();
+
+  const sizeDisp = document.getElementById('size-display');
+  const sizeBytes = new Blob([expandTokens(raw)]).size;
+  const sizeKB = Math.ceil(sizeBytes / 1024);
+  sizeDisp.textContent = sizeBytes < 1024 ? sizeBytes + 'B' : sizeKB + 'KB';
+  sizeDisp.style.color = sizeBytes > 5 * 1024 * 1024 ? '#c0392b' : '';
 }
 
 /* ── INTERACTIVE CHECKBOXES ── */
